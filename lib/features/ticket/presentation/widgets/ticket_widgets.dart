@@ -16,6 +16,16 @@ class TicketCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
+    // Ambil pesan terakhir secara aman tanpa .last langsung
+    String? lastComment;
+    if (ticket.comments.isNotEmpty) {
+      try {
+        lastComment = ticket.comments[ticket.comments.length - 1]["message"];
+      } catch (_) {
+        lastComment = null;
+      }
+    }
+
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(14),
@@ -59,17 +69,16 @@ class TicketCard extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                     style: theme.textTheme.bodyMedium,
                   ),
-                  const SizedBox(height: 6),
-
-                  // COMMENT PREVIEW
-                  if (ticket.comments.isNotEmpty &&
-                      ticket.comments.last["message"] != null)
+                  
+                  if (lastComment != null) ...[
+                    const SizedBox(height: 6),
                     Text(
-                      ticket.comments.last["message"]!,
+                      lastComment,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: theme.textTheme.bodySmall,
                     ),
+                  ],
                 ],
               ),
             ),

@@ -1,10 +1,19 @@
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'features/auth/presentation/pages/splash_page.dart';
 import 'core/theme/app_theme.dart';
 import 'package:provider/provider.dart';
 import 'features/ticket/presentation/providers/ticket_provider.dart';
+import 'core/config/supabase_config.dart';
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+
+  await Supabase.initialize(
+    url: SupabaseConfig.url,
+    anonKey: SupabaseConfig.anonKey,
+  );
+
   runApp(const MyApp());
 }
 

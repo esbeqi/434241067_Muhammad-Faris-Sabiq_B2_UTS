@@ -28,6 +28,19 @@ class TicketDetailPage extends StatelessWidget {
     final provider = context.watch<TicketProvider>();
     final theme = Theme.of(context);
 
+    // Ambil data tiket terbaru dari provider berdasarkan ID secara aman
+    TicketModel currentTicket = ticket;
+    try {
+      if (provider.tickets.isNotEmpty) {
+        currentTicket = provider.tickets.firstWhere(
+          (t) => t.id == ticket.id,
+          orElse: () => ticket,
+        );
+      }
+    } catch (_) {
+      currentTicket = ticket;
+    }
+
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,
       appBar: AppBar(
@@ -37,7 +50,6 @@ class TicketDetailPage extends StatelessWidget {
         padding: const EdgeInsets.all(16),
         child: Column(
           children: [
-            // MAIN CARD
             Expanded(
               child: SingleChildScrollView(
                 child: Container(
@@ -47,134 +59,94 @@ class TicketDetailPage extends StatelessWidget {
                     borderRadius: BorderRadius.circular(16),
                   ),
                   child: Column(
-                    crossAxisAlignment:
-                    CrossAxisAlignment.start,
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // HEADER
                       Row(
-                        mainAxisAlignment:
-                        MainAxisAlignment.spaceBetween,
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           Text(
-                            '#TKT-0001',
+                            '#TKT-${currentTicket.id ?? '0000'}',
                             style: theme.textTheme.titleMedium,
                           ),
-                          StatusBadge(status: ticket.status),
+                          StatusBadge(status: currentTicket.status),
                         ],
                       ),
-
                       const SizedBox(height: 12),
-
-                      // TITLE
                       Text(
-                        ticket.title,
+                        currentTicket.title,
                         style: theme.textTheme.titleLarge,
                       ),
-
                       const SizedBox(height: 8),
-
-                      // DESC
                       Text(
-                        ticket.desc,
+                        currentTicket.desc,
                         style: theme.textTheme.bodyMedium,
                       ),
-
                       const SizedBox(height: 16),
-
-                      // IMAGE
-                      if (ticket.imagePath != null &&
-                          ticket.imagePath!.isNotEmpty)
+                      if (currentTicket.imagePath != null && currentTicket.imagePath!.isNotEmpty)
                         Column(
-                          crossAxisAlignment:
-                          CrossAxisAlignment.start,
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(
-                              'Lampiran',
-                              style:
-                              theme.textTheme.titleMedium,
-                            ),
+                            Text('Lampiran', style: theme.textTheme.titleMedium),
                             const SizedBox(height: 8),
                             ClipRRect(
-                              borderRadius:
-                              BorderRadius.circular(10),
+                              borderRadius: BorderRadius.circular(10),
                               child: Image.file(
-                                File(ticket.imagePath!),
+                                File(currentTicket.imagePath!),
                                 height: 140,
                                 width: double.infinity,
                                 fit: BoxFit.cover,
+                                errorBuilder: (_, __, ___) => const Icon(Icons.broken_image, size: 50),
                               ),
                             ),
                             const SizedBox(height: 6),
                             Text(
-                              ticket.imagePath!
-                                  .split('/')
-                                  .last,
-                              style:
-                              theme.textTheme.bodySmall,
+                              currentTicket.imagePath!.split('/').isNotEmpty 
+                                  ? currentTicket.imagePath!.split('/').last 
+                                  : 'file_lampiran',
+                              style: theme.textTheme.bodySmall,
                             ),
                           ],
                         ),
-
                       const SizedBox(height: 20),
-
-                      // STATUS ACTION
                       if (role != 'user') ...[
-                        Text(
-                          'Update Status',
-                          style:
-                          theme.textTheme.titleMedium,
-                        ),
+                        Text('Update Status', style: theme.textTheme.titleMedium),
                         const SizedBox(height: 10),
                         Row(
                           children: [
                             StatusButton(
                               text: 'Diproses',
                               onTap: () async {
-                                await provider.updateStatus(
-                                    ticket, 'Diproses');
-                                showMessage(context,
-                                    'Status diubah ke Diproses');
+                                await provider.updateStatus(currentTicket, 'Diproses');
+                                showMessage(context, 'Status diubah ke Diproses');
                               },
                             ),
                             StatusButton(
                               text: 'Assigned',
                               onTap: () async {
-                                await provider.updateStatus(
-                                    ticket, 'Assigned');
-                                showMessage(context,
-                                    'Status diubah ke Assigned');
+                                await provider.updateStatus(currentTicket, 'Assigned');
+                                showMessage(context, 'Status diubah ke Assigned');
                               },
                             ),
                             StatusButton(
                               text: 'Selesai',
                               onTap: () async {
-                                await provider.updateStatus(
-                                    ticket, 'Selesai');
-                                showMessage(context,
-                                    'Status diubah ke Selesai');
+                                await provider.updateStatus(currentTicket, 'Selesai');
+                                showMessage(context, 'Status diubah ke Selesai');
                               },
                             ),
                           ],
                         ),
                         const SizedBox(height: 20),
                       ],
-
-                      // HISTORY
-                      Text(
-                        'Riwayat',
-                        style: theme.textTheme.titleMedium,
-                      ),
+                      Text('Riwayat', style: theme.textTheme.titleMedium),
                       const SizedBox(height: 10),
-                      HistoryList(history: ticket.history),
+                      HistoryList(history: currentTicket.history),
                     ],
                   ),
                 ),
               ),
             ),
-
             const SizedBox(height: 16),
-
-            // BUTTON KE KOMENTAR
             SizedBox(
               width: double.infinity,
               child: OutlinedButton(
@@ -183,15 +155,13 @@ class TicketDetailPage extends StatelessWidget {
                     context,
                     MaterialPageRoute(
                       builder: (_) => TicketCommentPage(
-                        ticket: ticket,
+                        ticket: currentTicket,
                         role: role,
                       ),
                     ),
                   );
                 },
-                child: Text(
-                  'Lihat Komentar (${ticket.comments.length})',
-                ),
+                child: Text('Lihat Komentar (${currentTicket.comments.length})'),
               ),
             ),
           ],

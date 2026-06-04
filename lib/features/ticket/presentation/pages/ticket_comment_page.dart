@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'dart:developer' as dev;
 
 import '../../data/models/ticket_model.dart';
 import '../providers/ticket_provider.dart';
@@ -15,26 +16,18 @@ class TicketCommentPage extends StatefulWidget {
   });
 
   @override
-  State<TicketCommentPage> createState() =>
-      _TicketCommentPageState();
+  State<TicketCommentPage> createState() => _TicketCommentPageState();
 }
 
-class _TicketCommentPageState
-    extends State<TicketCommentPage> {
-  final TextEditingController controller =
-  TextEditingController();
-
-  final ScrollController scrollController =
-  ScrollController();
+class _TicketCommentPageState extends State<TicketCommentPage> {
+  final TextEditingController controller = TextEditingController();
+  final ScrollController scrollController = ScrollController();
 
   String getAuthor() {
     switch (widget.role) {
-      case 'admin':
-        return 'Admin';
-      case 'helpdesk':
-        return 'Helpdesk';
-      default:
-        return 'User';
+      case 'admin': return 'Admin';
+      case 'helpdesk': return 'Helpdesk';
+      default: return 'User';
     }
   }
 
@@ -51,35 +44,51 @@ class _TicketCommentPageState
   }
 
   Future<void> sendComment() async {
-    if (controller.text.isEmpty) return;
+    if (controller.text.trim().isEmpty) return;
 
     final provider = context.read<TicketProvider>();
+    final message = controller.text.trim();
 
-    await provider.addComment(
-      widget.ticket,
-      controller.text,
-      author: getAuthor(),
-      role: widget.role,
-    );
+    try {
+      // Optimistic UI clear
+      controller.clear();
+      
+      await provider.addComment(
+        widget.ticket,
+        message,
+        author: getAuthor(),
+        role: widget.role,
+      );
 
-    controller.clear();
-
-    scrollToBottom();
+      scrollToBottom();
+    } catch (e) {
+      dev.log('Error sending comment: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Gagal mengirim komentar: $e')),
+        );
+      }
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-
-    // WATCH PROVIDER (BIAR AUTO UPDATE)
     final provider = context.watch<TicketProvider>();
 
-    // ambil ticket terbaru dari provider
-    final ticket = provider.tickets.firstWhere(
-          (t) => t == widget.ticket,
-    );
+    // CARA AMAN: Cari tiket berdasarkan ID, jika tidak ada pakai widget.ticket
+    TicketModel displayTicket = widget.ticket;
+    
+    if (provider.tickets.isNotEmpty) {
+      for (var t in provider.tickets) {
+        if (t.id == widget.ticket.id) {
+          displayTicket = t;
+          break;
+        }
+      }
+    }
 
-    final comments = ticket.comments;
+    final comments = displayTicket.comments;
 
     return Scaffold(
       appBar: AppBar(
@@ -87,7 +96,6 @@ class _TicketCommentPageState
       ),
       body: Column(
         children: [
-          // LIST CHAT
           Expanded(
             child: ListView.builder(
               controller: scrollController,
@@ -95,47 +103,33 @@ class _TicketCommentPageState
               itemCount: comments.length,
               itemBuilder: (context, index) {
                 final c = comments[index];
-
-                final isMe =
-                    c["role"] == widget.role;
+                final isMe = c["role"] == widget.role;
 
                 return Align(
-                  alignment: isMe
-                      ? Alignment.centerRight
-                      : Alignment.centerLeft,
+                  alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
                   child: Container(
-                    margin:
-                    const EdgeInsets.only(bottom: 10),
+                    margin: const EdgeInsets.only(bottom: 10),
                     padding: const EdgeInsets.all(12),
-                    constraints:
-                    const BoxConstraints(maxWidth: 260),
+                    constraints: const BoxConstraints(maxWidth: 260),
                     decoration: BoxDecoration(
-                      color: isMe
-                          ? theme.colorScheme.primary
-                          : theme.cardColor,
-                      borderRadius:
-                      BorderRadius.circular(12),
+                      color: isMe ? theme.colorScheme.primary : theme.cardColor,
+                      borderRadius: BorderRadius.circular(12),
                     ),
                     child: Column(
-                      crossAxisAlignment:
-                      CrossAxisAlignment.start,
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
                           c["author"] ?? '',
                           style: TextStyle(
                             fontWeight: FontWeight.bold,
-                            color: isMe
-                                ? Colors.white
-                                : theme.colorScheme.primary,
+                            color: isMe ? Colors.white : theme.colorScheme.primary,
                           ),
                         ),
                         const SizedBox(height: 4),
                         Text(
                           c["message"] ?? '',
                           style: TextStyle(
-                            color: isMe
-                                ? Colors.white
-                                : theme.textTheme.bodyMedium?.color,
+                            color: isMe ? Colors.white : theme.textTheme.bodyMedium?.color,
                           ),
                         ),
                       ],
@@ -145,8 +139,6 @@ class _TicketCommentPageState
               },
             ),
           ),
-
-          // INPUT
           SafeArea(
             child: Container(
               padding: const EdgeInsets.all(12),
@@ -164,11 +156,7 @@ class _TicketCommentPageState
                   const SizedBox(width: 8),
                   IconButton(
                     onPressed: sendComment,
-                    icon: Icon(
-                      Icons.send,
-                      color:
-                      theme.colorScheme.primary,
-                    ),
+                    icon: Icon(Icons.send, color: theme.colorScheme.primary),
                   ),
                 ],
               ),

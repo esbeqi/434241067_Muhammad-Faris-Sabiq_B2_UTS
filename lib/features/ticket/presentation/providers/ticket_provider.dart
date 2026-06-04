@@ -8,69 +8,80 @@ class TicketProvider extends ChangeNotifier {
   List<TicketModel> tickets = [];
   bool isLoading = false;
 
-  // LOAD DATA
   Future<void> loadTickets() async {
+    if (isLoading) return;
     isLoading = true;
     notifyListeners();
 
-    tickets = await service.fetchTickets();
-
-    isLoading = false;
-    notifyListeners();
+    try {
+      final newTickets = await service.fetchTickets();
+      tickets = newTickets;
+    } catch (e) {
+      debugPrint('Error loading tickets: $e');
+    } finally {
+      isLoading = false;
+      notifyListeners();
+    }
   }
 
-  // TAMBAH TIKET
   Future<void> addTicket(TicketModel ticket) async {
-    await service.createTicket(ticket);
-    await loadTickets();
+    try {
+      await service.createTicket(ticket);
+      await loadTickets();
+    } catch (e) {
+      debugPrint('Error adding ticket: $e');
+    }
   }
 
-  //  UPDATE STATUS
-  Future<void> updateStatus(
-      TicketModel ticket, String status) async {
-    await service.updateTicketStatus(ticket, status);
-    notifyListeners();
+  Future<void> updateStatus(TicketModel ticket, String status) async {
+    try {
+      await service.updateTicketStatus(ticket, status);
+      await loadTickets();
+    } catch (e) {
+      debugPrint('Error updating status: $e');
+    }
   }
 
-  // COMMENT
   Future<void> addComment(
-      TicketModel ticket,
-      String comment, {
-        String author = 'User',
-        String role = 'user',
-      }) async {
-    await service.addComment(
-      ticket,
-      comment,
-      author: author,
-      role: role,
-    );
-
-    notifyListeners();
+    TicketModel ticket,
+    String comment, {
+    String author = 'User',
+    String role = 'user',
+  }) async {
+    try {
+      await service.addComment(ticket, comment, author: author, role: role);
+      await loadTickets();
+    } catch (e) {
+      debugPrint('Error adding comment: $e');
+      rethrow;
+    }
   }
 
-  // DASHBOARD
   int get total => tickets.length;
 
   int countByStatus(String status) {
+    if (tickets.isEmpty) return 0;
     return tickets.where((t) => t.status == status).length;
   }
 
-  // GLOBAL HISTORY (BONUS FITUR)
   List<String> getAllHistory() {
-    List<String> allHistory = [];
-
-    for (var t in tickets) {
-      allHistory.addAll(t.history);
+    if (tickets.isEmpty) return [];
+    
+    final List<String> allHistory = [];
+    for (final t in tickets) {
+      if (t.history.isNotEmpty) {
+        allHistory.addAll(t.history);
+      }
     }
 
-    // urutkan terbaru di atas
-    return allHistory.reversed.toList();
+    if (allHistory.isEmpty) return [];
+    // Menggunakan toList() sebelum reversed untuk keamanan ekstra
+    return allHistory.toList().reversed.toList();
   }
 
-  // AMBIL BEBERAPA AKTIVITAS TERBARU
   List<String> getRecentActivities({int limit = 5}) {
     final all = getAllHistory();
+    if (all.isEmpty) return [];
     return all.take(limit).toList();
   }
 }

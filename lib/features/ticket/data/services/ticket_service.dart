@@ -1,161 +1,117 @@
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/ticket_model.dart';
 
 class TicketService {
   static final TicketService _instance = TicketService._internal();
-
-  factory TicketService() {
-    return _instance;
-  }
-
+  factory TicketService() => _instance;
   TicketService._internal();
 
-  // SHARED DATA
-  final List<TicketModel> _tickets = [
-    // DIPROSES
-    TicketModel(
-      title: 'Internet Kantor Lambat',
-      desc: 'Koneksi wifi di lantai 2 sangat lambat',
-      status: 'Diproses',
-      comments: [
-        {
-          "message": "Sedang dicek oleh tim IT",
-          "author": "Admin",
-          "role": "admin"
-        }
-      ],
-      history: [
-        '[Internet Kantor Lambat] Tiket dibuat',
-      ],
-    ),
-    TicketModel(
-      title: 'Komputer Tidak Bisa Nyala',
-      desc: 'PC tidak merespon saat ditekan tombol power',
-      status: 'Diproses',
-      comments: [
-        {
-          "message": "Sudah dilaporkan",
-          "author": "User",
-          "role": "user"
-        }
-      ],
-      history: [
-        '[Komputer Tidak Bisa Nyala] Tiket dibuat',
-      ],
-    ),
+  final _supabase = Supabase.instance.client;
 
-    // ASSIGNED
-    TicketModel(
-      title: 'Server Down',
-      desc: 'Server tidak bisa diakses sejak pagi',
-      status: 'Assigned',
-      comments: [
-        {
-          "message": "Sudah di-assign ke teknisi",
-          "author": "Admin",
-          "role": "admin"
-        }
-      ],
-      history: [
-        '[Server Down] Tiket dibuat',
-      ],
-    ),
-    TicketModel(
-      title: 'Email Tidak Masuk',
-      desc: 'Tidak menerima email dari klien',
-      status: 'Assigned',
-      comments: [
-        {
-          "message": "Dalam pengecekan",
-          "author": "Helpdesk",
-          "role": "helpdesk"
-        }
-      ],
-      history: [
-        '[Email Tidak Masuk] Tiket dibuat',
-      ],
-    ),
-
-    // SELESAI
-    TicketModel(
-      title: 'Printer Error',
-      desc: 'Printer tidak bisa mencetak dokumen',
-      status: 'Selesai',
-      comments: [
-        {
-          "message": "Sudah diperbaiki",
-          "author": "Admin",
-          "role": "admin"
-        }
-      ],
-      history: [
-        '[Printer Error] Tiket dibuat',
-      ],
-    ),
-    TicketModel(
-      title: 'Aplikasi Crash',
-      desc: 'Aplikasi force close saat login',
-      status: 'Selesai',
-      comments: [
-        {
-          "message": "Sudah diupdate versi terbaru",
-          "author": "Admin",
-          "role": "admin"
-        }
-      ],
-      history: [
-        '[Aplikasi Crash] Tiket dibuat',
-      ],
-    ),
-  ];
-
-  // GET
   Future<List<TicketModel>> fetchTickets() async {
-    await Future.delayed(const Duration(seconds: 1));
-    return _tickets;
+    try {
+      final response = await _supabase
+          .from('tickets')
+          .select()
+          .order('created_at', ascending: false);
+
+      final List<TicketModel> tickets = (response as List)
+          .map((json) => TicketModel.fromJson(json))
+          .toList();
+
+      for (var ticket in tickets) {
+        if (ticket.id != null) {
+          ticket.comments = await fetchComments(ticket.id!);
+          ticket.history = await fetchHistories(ticket.id!);
+        }
+      }
+      return tickets;
+    } catch (e) {
+      return [];
+    }
   }
 
-  // CREATE
+  Future<List<Map<String, String>>> fetchComments(String ticketId) async {
+    try {
+      final response = await _supabase
+          .from('comments')
+          .select()
+          .eq('ticket_id', ticketId)
+          .order('created_at', ascending: true);
+      
+      return (response as List).map((item) => {
+        "message": item['message']?.toString() ?? '',
+        "author": item['author']?.toString() ?? '',
+        "role": item['role']?.toString() ?? '',
+      }).toList();
+    } catch (e) {
+      return [];
+    }
+  }
+
+  Future<List<String>> fetchHistories(String ticketId) async {
+    try {
+      final response = await _supabase
+          .from('histories')
+          .select()
+          .eq('ticket_id', ticketId)
+          .order('created_at', ascending: true);
+      
+      return (response as List).map((item) => item['activity']?.toString() ?? '').toList();
+    } catch (e) {
+      return [];
+    }
+  }
+
   Future<void> createTicket(TicketModel ticket) async {
-    await Future.delayed(const Duration(milliseconds: 500));
+    try {
+      final response = await _supabase.from('tickets').insert({
+        'title': ticket.title,
+        'description': ticket.desc,
+        'status': ticket.status,
+        'image_url': ticket.imagePath,
+      }).select();
 
-    ticket.history.add('[${ticket.title}] Tiket dibuat');
-
-    _tickets.add(ticket);
+      if (response != null && response is List && response.isNotEmpty) {
+        final String ticketId = response[0]['id'].toString();
+        await addHistory(ticketId, '[${ticket.title}] Tiket dibuat');
+      }
+    } catch (e) {
+      rethrow;
+    }
   }
 
-  // UPDATE
-  Future<void> updateTicketStatus(
-      TicketModel ticket, String status) async {
-    await Future.delayed(const Duration(milliseconds: 500));
-
-    ticket.status = status;
-
-    ticket.history.add(
-      '[${ticket.title}] Status diubah ke $status',
-    );
+  Future<void> updateTicketStatus(TicketModel ticket, String status) async {
+    try {
+      await _supabase.from('tickets').update({'status': status}).eq('id', ticket.id!);
+      await addHistory(ticket.id!, '[${ticket.title}] Status diubah ke $status');
+    } catch (e) {
+      rethrow;
+    }
   }
 
-  // COMMENT
-  Future<void> addComment(
-      TicketModel ticket,
-      String comment,
-      {String author = 'User Demo', String role = 'user'}) async {
-    await Future.delayed(const Duration(milliseconds: 300));
-
-    ticket.comments.add({
-      "message": comment,
-      "author": author,
-      "role": role,
-    });
-
-    ticket.history.add(
-      '[${ticket.title}] $author menambahkan komentar',
-    );
+  Future<void> addComment(TicketModel ticket, String comment, {String author = 'User Demo', String role = 'user'}) async {
+    try {
+      await _supabase.from('comments').insert({
+        'ticket_id': ticket.id,
+        'author': author,
+        'role': role,
+        'message': comment,
+      });
+      await addHistory(ticket.id!, '[${ticket.title}] $author menambahkan komentar');
+    } catch (e) {
+      rethrow;
+    }
   }
 
-  // DASHBOARD
-  int getTotalTickets() => _tickets.length;
-
-  int getTotalByStatus(String status) =>
-      _tickets.where((t) => t.status == status).length;
+  Future<void> addHistory(String ticketId, String activity) async {
+    try {
+      await _supabase.from('histories').insert({
+        'ticket_id': ticketId,
+        'activity': activity,
+      });
+    } catch (e) {
+      // ignore
+    }
+  }
 }
