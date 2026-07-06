@@ -62,6 +62,13 @@ class TicketCard extends StatelessWidget {
                     ticket.title,
                     style: theme.textTheme.titleMedium,
                   ),
+                  const SizedBox(height: 2),
+                  Text(
+                    'Helpdesk: ${ticket.assignedHelpdesk ?? "Belum ditugaskan"}',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.primary.withOpacity(0.8),
+                    ),
+                  ),
                   const SizedBox(height: 4),
                   Text(
                     ticket.desc,
@@ -102,7 +109,7 @@ class StatusBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = _getColor(context, status);
+    final color = _getColor(status);
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
@@ -121,16 +128,16 @@ class StatusBadge extends StatelessWidget {
     );
   }
 
-  Color _getColor(BuildContext context, String status) {
-    final theme = Theme.of(context);
-
-    switch (status) {
-      case 'Selesai':
-        return Colors.green;
-      case 'Assigned':
+  Color _getColor(String status) {
+    switch (status.toUpperCase()) {
+      case 'OPEN':
+        return Colors.orange;
+      case 'IN_PROGRESS':
         return Colors.blue;
+      case 'CLOSE':
+        return Colors.green;
       default:
-        return theme.colorScheme.primary;
+        return Colors.grey;
     }
   }
 }
@@ -186,7 +193,7 @@ class CommentList extends StatelessWidget {
   }
 }
 
-/// HISTORY LIST
+/// TRACKING TIMELINE (Update Sprint 3B)
 class HistoryList extends StatelessWidget {
   final List<String> history;
 
@@ -196,40 +203,127 @@ class HistoryList extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
+    if (history.isEmpty) {
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: theme.cardColor.withOpacity(0.5),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: const Center(
+          child: Text('Belum ada aktivitas.'),
+        ),
+      );
+    }
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
-      children: history
-          .map(
-            (h) => Padding(
-          padding: const EdgeInsets.only(bottom: 6),
-          child: Text(
-            '• $h',
-            style: theme.textTheme.bodyMedium,
+      children: List.generate(history.length, (index) {
+        final activity = history[index];
+        final isLast = index == history.length - 1;
+        
+        final config = _getTimelineConfig(activity);
+
+        return IntrinsicHeight(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // TIMELINE LINE & ICON
+              Column(
+                children: [
+                  Container(
+                    width: 28,
+                    height: 28,
+                    decoration: BoxDecoration(
+                      color: config.color.withOpacity(0.15),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(
+                      config.icon,
+                      size: 16,
+                      color: config.color,
+                    ),
+                  ),
+                  if (!isLast)
+                    Expanded(
+                      child: Container(
+                        width: 2,
+                        margin: const EdgeInsets.symmetric(vertical: 4),
+                        color: theme.dividerColor.withOpacity(0.2),
+                      ),
+                    ),
+                ],
+              ),
+              
+              const SizedBox(width: 12),
+
+              // CONTENT
+              Expanded(
+                child: Padding(
+                  padding: EdgeInsets.only(bottom: isLast ? 0 : 20),
+                  child: Text(
+                    activity,
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ),
+              ),
+            ],
           ),
-        ),
-      )
-          .toList(),
+        );
+      }),
     );
   }
+
+  _TimelineConfig _getTimelineConfig(String activity) {
+    // Prioritaskan status Close/Selesai
+    if (activity.contains("Close") || activity.contains("Selesai")) {
+      return _TimelineConfig(Icons.check_circle, Colors.green);
+    } else if (activity.contains("Tiket dibuat")) {
+      return _TimelineConfig(Icons.add_circle, Colors.green);
+    } else if (activity.contains("Assigned")) {
+      return _TimelineConfig(Icons.assignment_ind, Colors.blue);
+    } else if (activity.contains("komentar")) {
+      return _TimelineConfig(Icons.chat_bubble, Colors.orange);
+    } else if (activity.contains("Status")) {
+      return _TimelineConfig(Icons.sync, Colors.purple);
+    }
+    return _TimelineConfig(Icons.circle, Colors.grey);
+  }
+}
+
+class _TimelineConfig {
+  final IconData icon;
+  final Color color;
+  _TimelineConfig(this.icon, this.color);
 }
 
 /// STATUS BUTTON
 class StatusButton extends StatelessWidget {
   final String text;
   final VoidCallback onTap;
+  final Color? color;
 
   const StatusButton({
     super.key,
     required this.text,
     required this.onTap,
+    this.color,
   });
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return Expanded(
       child: Padding(
         padding: const EdgeInsets.only(right: 6),
         child: ElevatedButton(
+          style: ElevatedButton.styleFrom(
+            backgroundColor: color ?? theme.colorScheme.primary,
+            foregroundColor: Colors.white,
+          ),
           onPressed: onTap,
           child: Text(text),
         ),

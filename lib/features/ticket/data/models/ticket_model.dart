@@ -2,6 +2,7 @@ class TicketModel {
   String title;
   String desc;
   String status;
+  String? assignedHelpdesk;
 
   List<Map<String, String>> comments;
   List<String> history;
@@ -15,6 +16,7 @@ class TicketModel {
     required this.title,
     required this.desc,
     required this.status,
+    this.assignedHelpdesk,
     required this.comments,
     this.imagePath,
     this.id,
@@ -28,12 +30,14 @@ class TicketModel {
       id: json['id']?.toString(),
       title: json['title'] ?? '',
       desc: json['description'] ?? '',
-      status: json['status'] ?? 'Diproses',
+      status: json['status'] ?? 'OPEN',
+      assignedHelpdesk: json['assigned_helpdesk'],
       imagePath: json['image_url'],
       createdAt: json['created_at'],
-      // Akan diisi secara manual setelah fetch dari tabel terpisah
       comments: [],
-      history: [],
+      history: json['history'] != null 
+          ? List<String>.from(json['history']) 
+          : ['Tiket dibuat'],
     );
   }
 
@@ -42,6 +46,7 @@ class TicketModel {
       'title': title,
       'description': desc,
       'status': status,
+      'assigned_helpdesk': assignedHelpdesk,
       'image_url': imagePath,
     };
   }

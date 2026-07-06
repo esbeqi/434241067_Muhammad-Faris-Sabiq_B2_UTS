@@ -5,77 +5,118 @@ import '../../../ticket/presentation/pages/ticket_list_page.dart';
 import '../../../auth/presentation/pages/login_page.dart';
 import '../../../profile/presentation/pages/profile_page.dart';
 import '../../../ticket/presentation/providers/ticket_provider.dart';
+import '../../../auth/presentation/providers/auth_provider.dart';
+import '../../../notification/presentation/pages/notification_page.dart';
 import '../widgets/dashboard_widgets.dart';
 
 class DashboardHelpdeskPage extends StatelessWidget {
   const DashboardHelpdeskPage({super.key});
 
+  Future<void> _showLogoutConfirmation(BuildContext context, AuthProvider authProvider) async {
+    return showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Konfirmasi'),
+        content: const Text('Apakah Anda yakin ingin logout?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Batal'),
+          ),
+          TextButton(
+            onPressed: () async {
+              await authProvider.logout();
+              if (context.mounted) {
+                Navigator.pushAndRemoveUntil(
+                  context,
+                  MaterialPageRoute(builder: (_) => const LoginPage()),
+                  (route) => false,
+                );
+              }
+            },
+            child: const Text('Ya', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    final provider = Provider.of<TicketProvider>(context);
+    final ticketProvider = Provider.of<TicketProvider>(context);
+    final authProvider = Provider.of<AuthProvider>(context);
     final theme = Theme.of(context);
 
-    final total = provider.total;
-    final diproses = provider.countByStatus('Diproses');
-    final assigned = provider.countByStatus('Assigned');
+    if (ticketProvider.isLoading || authProvider.isLoading) {
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
 
-    final activities = provider.getRecentActivities();
+    final total = ticketProvider.total;
+    final open = ticketProvider.countByStatus('OPEN');
+    final assigned = ticketProvider.countAssigned;
+    final inProgress = ticketProvider.countByStatus('IN_PROGRESS');
+    final close = ticketProvider.countByStatus('CLOSE');
+
+    final activities = ticketProvider.getRecentActivities();
 
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,
-
       appBar: AppBar(
         title: const Text('Dashboard Helpdesk'),
         actions: [
-          // REFRESH
+          IconButton(
+            icon: Icon(Icons.notifications, color: theme.colorScheme.primary),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const NotificationPage()),
+              );
+            },
+          ),
           IconButton(
             icon: const Icon(Icons.refresh),
-            onPressed: provider.loadTickets,
+            onPressed: ticketProvider.loadTickets,
           ),
-
-          // PROFILE (BARU)
           IconButton(
             icon: const Icon(Icons.person),
             onPressed: () {
               Navigator.push(
                 context,
-                MaterialPageRoute(
-                  builder: (_) =>
-                  const ProfilePage(role: 'helpdesk'),
-                ),
+                MaterialPageRoute(builder: (_) => const ProfilePage(role: 'helpdesk')),
               );
             },
           ),
-
-          // LOGOUT
           IconButton(
             icon: const Icon(Icons.logout),
-            onPressed: () {
-              Navigator.pushAndRemoveUntil(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => const LoginPage(),
-                ),
-                    (route) => false,
-              );
-            },
+            onPressed: () => _showLogoutConfirmation(context, authProvider),
           )
         ],
       ),
-
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              'Helpdesk Panel',
-              style: theme.textTheme.titleLarge,
+            // GREETING
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('Halo,', style: TextStyle(fontSize: 16)),
+                Text(
+                  authProvider.fullName ?? 'Helpdesk',
+                  style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+                ),
+                Text(
+                  (authProvider.role ?? 'Helpdesk').toUpperCase(),
+                  style: TextStyle(color: theme.colorScheme.primary, fontWeight: FontWeight.bold, fontSize: 12),
+                ),
+              ],
             ),
 
-            const SizedBox(height: 20),
+            const SizedBox(height: 24),
 
-            // CARD GRID
             GridView.count(
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
@@ -84,68 +125,38 @@ class DashboardHelpdeskPage extends StatelessWidget {
               mainAxisSpacing: 12,
               childAspectRatio: 1.2,
               children: [
-                DashboardCard(
-                  title: 'Total',
-                  value: total.toString(),
-                  icon: Icons.list,
-                ),
-                DashboardCard(
-                  title: 'Diproses',
-                  value: diproses.toString(),
-                  icon: Icons.timelapse,
-                ),
-                DashboardCard(
-                  title: 'Assigned',
-                  value: assigned.toString(),
-                  icon: Icons.assignment,
-                ),
+                DashboardCard(title: 'Total', value: total.toString(), icon: Icons.list),
+                DashboardCard(title: 'Open', value: open.toString(), icon: Icons.lock_open),
+                DashboardCard(title: 'Assigned', value: assigned.toString(), icon: Icons.assignment_ind),
+                DashboardCard(title: 'In Progress', value: inProgress.toString(), icon: Icons.sync),
+                DashboardCard(title: 'Close', value: close.toString(), icon: Icons.lock),
               ],
             ),
-
             const SizedBox(height: 30),
-
-            // BUTTON
             DashboardButton(
-              text: 'Assign Tiket',
+              text: 'Kerjakan Tiket',
               icon: Icons.assignment,
               onTap: () {
                 Navigator.push(
                   context,
-                  MaterialPageRoute(
-                    builder: (_) =>
-                    const TicketListPage(role: 'helpdesk'),
-                  ),
+                  MaterialPageRoute(builder: (_) => const TicketListPage(role: 'helpdesk')),
                 ).then((_) {
-                  provider.loadTickets();
+                  ticketProvider.loadTickets();
                 });
               },
             ),
-
             const SizedBox(height: 30),
-
-            // AKTIVITAS TERBARU
-            Text(
-              'Aktivitas Terbaru',
-              style: theme.textTheme.titleMedium,
-            ),
-
+            Text('Aktivitas Terbaru', style: theme.textTheme.titleMedium),
             const SizedBox(height: 10),
-
             if (activities.isEmpty)
-              Text(
-                'Belum ada aktivitas',
-                style: theme.textTheme.bodyMedium,
-              )
+              Text('Belum ada aktivitas', style: theme.textTheme.bodyMedium)
             else
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: activities.map((e) {
                   return Padding(
                     padding: const EdgeInsets.only(bottom: 6),
-                    child: Text(
-                      '• $e',
-                      style: theme.textTheme.bodyMedium,
-                    ),
+                    child: Text('• $e', style: theme.textTheme.bodyMedium),
                   );
                 }).toList(),
               ),

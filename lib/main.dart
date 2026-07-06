@@ -4,6 +4,7 @@ import 'features/auth/presentation/pages/splash_page.dart';
 import 'core/theme/app_theme.dart';
 import 'package:provider/provider.dart';
 import 'features/ticket/presentation/providers/ticket_provider.dart';
+import 'features/auth/presentation/providers/auth_provider.dart';
 import 'core/config/supabase_config.dart';
 
 void main() async {
@@ -43,6 +44,7 @@ class _MyAppState extends State<MyApp> {
   Widget build(BuildContext context) {
     return MultiProvider(
       providers: [
+        ChangeNotifierProvider(create: (_) => AuthProvider()),
         ChangeNotifierProvider(
           create: (_) => TicketProvider()..loadTickets(),
         ),

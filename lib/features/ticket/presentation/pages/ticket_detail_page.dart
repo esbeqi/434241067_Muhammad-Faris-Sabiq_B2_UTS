@@ -23,12 +23,68 @@ class TicketDetailPage extends StatelessWidget {
     );
   }
 
+  Future<void> _confirmAction(BuildContext context, String title, String message, VoidCallback onConfirm) async {
+    return showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(title),
+        content: Text(message),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Batal'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              onConfirm();
+            },
+            child: const Text('Ya', style: TextStyle(color: Colors.blue)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showAssignDialog(BuildContext context, TicketProvider provider, TicketModel ticket) {
+    String selectedHelpdesk = 'Helpdesk 1';
+    showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setState) => AlertDialog(
+          title: const Text('Assign Helpdesk'),
+          content: DropdownButton<String>(
+            value: selectedHelpdesk,
+            isExpanded: true,
+            items: ['Helpdesk 1', 'Helpdesk 2', 'Helpdesk 3']
+                .map((e) => DropdownMenuItem(value: e, child: Text(e)))
+                .toList(),
+            onChanged: (val) => setState(() => selectedHelpdesk = val!),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                await provider.assignHelpdesk(ticket.id!, selectedHelpdesk);
+                Navigator.pop(context);
+                showMessage(context, 'Berhasil menugaskan $selectedHelpdesk');
+              },
+              child: const Text('Assign'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<TicketProvider>();
     final theme = Theme.of(context);
 
-    // Ambil data tiket terbaru dari provider berdasarkan ID secara aman
     TicketModel currentTicket = ticket;
     try {
       if (provider.tickets.isNotEmpty) {
@@ -59,7 +115,8 @@ class TicketDetailPage extends StatelessWidget {
                     borderRadius: BorderRadius.circular(16),
                   ),
                   child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                    crossAxisAlignment:
+                    CrossAxisAlignment.start,
                     children: [
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -75,6 +132,11 @@ class TicketDetailPage extends StatelessWidget {
                       Text(
                         currentTicket.title,
                         style: theme.textTheme.titleLarge,
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Helpdesk: ${currentTicket.assignedHelpdesk ?? "Belum ditugaskan"}',
+                        style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.primary),
                       ),
                       const SizedBox(height: 8),
                       Text(
@@ -100,7 +162,7 @@ class TicketDetailPage extends StatelessWidget {
                             ),
                             const SizedBox(height: 6),
                             Text(
-                              currentTicket.imagePath!.split('/').isNotEmpty 
+                              currentTicket.imagePath!.contains('/') 
                                   ? currentTicket.imagePath!.split('/').last 
                                   : 'file_lampiran',
                               style: theme.textTheme.bodySmall,
@@ -108,36 +170,42 @@ class TicketDetailPage extends StatelessWidget {
                           ],
                         ),
                       const SizedBox(height: 20),
-                      if (role != 'user') ...[
-                        Text('Update Status', style: theme.textTheme.titleMedium),
+                      
+                      if (role == 'admin' && currentTicket.status == 'OPEN') ...[
+                        Text('Tindakan Admin', style: theme.textTheme.titleMedium),
                         const SizedBox(height: 10),
-                        Row(
-                          children: [
-                            StatusButton(
-                              text: 'Diproses',
-                              onTap: () async {
-                                await provider.updateStatus(currentTicket, 'Diproses');
-                                showMessage(context, 'Status diubah ke Diproses');
-                              },
-                            ),
-                            StatusButton(
-                              text: 'Assigned',
-                              onTap: () async {
-                                await provider.updateStatus(currentTicket, 'Assigned');
-                                showMessage(context, 'Status diubah ke Assigned');
-                              },
-                            ),
-                            StatusButton(
-                              text: 'Selesai',
-                              onTap: () async {
-                                await provider.updateStatus(currentTicket, 'Selesai');
-                                showMessage(context, 'Status diubah ke Selesai');
-                              },
-                            ),
-                          ],
+                        SizedBox(
+                          width: double.infinity,
+                          child: ElevatedButton(
+                            onPressed: () => _showAssignDialog(context, provider, currentTicket),
+                            child: const Text('Assign Helpdesk'),
+                          ),
+                        ),
+                        const SizedBox(height: 20),
+                      ] else if (role == 'helpdesk' && currentTicket.status == 'IN_PROGRESS') ...[
+                        Text('Tindakan Helpdesk', style: theme.textTheme.titleMedium),
+                        const SizedBox(height: 10),
+                        SizedBox(
+                          width: double.infinity,
+                          child: ElevatedButton(
+                            style: ElevatedButton.styleFrom(backgroundColor: Colors.green, foregroundColor: Colors.white),
+                            onPressed: () {
+                              _confirmAction(
+                                context, 
+                                'Konfirmasi', 
+                                'Apakah Anda yakin ingin menyelesaikan tiket ini?', 
+                                () async {
+                                  await provider.finishTicket(currentTicket.id!);
+                                  if (context.mounted) showMessage(context, 'Tiket diselesaikan');
+                                }
+                              );
+                            },
+                            child: const Text('Finish Ticket'),
+                          ),
                         ),
                         const SizedBox(height: 20),
                       ],
+
                       Text('Riwayat', style: theme.textTheme.titleMedium),
                       const SizedBox(height: 10),
                       HistoryList(history: currentTicket.history),

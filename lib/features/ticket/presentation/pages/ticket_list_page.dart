@@ -91,15 +91,9 @@ class _TicketListPageState extends State<TicketListPage> {
                 .toList();
           }
 
-          // FILTER ROLE
-          if (widget.role == 'helpdesk') {
-            tickets = tickets
-                .where((t) => t.status == 'Diproses')
-                .toList();
-          } else if (widget.role == 'admin') {
-            tickets = tickets
-                .where((t) => t.status != 'Diproses')
-                .toList();
+          // FILTER ROLE (UAS Workflow)
+          if (widget.role == 'admin') {
+            // Admin melihat semua tiket
           }
 
           if (tickets.isEmpty) {
@@ -132,9 +126,9 @@ class _TicketListPageState extends State<TicketListPage> {
                       value: selectedStatus,
                       items: const [
                         'Semua',
-                        'Diproses',
-                        'Assigned',
-                        'Selesai'
+                        'OPEN',
+                        'IN_PROGRESS',
+                        'CLOSE'
                       ]
                           .map((e) => DropdownMenuItem(
                         value: e,

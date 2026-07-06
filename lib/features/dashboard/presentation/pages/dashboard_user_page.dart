@@ -6,79 +6,116 @@ import '../../../ticket/presentation/pages/create_ticket_page.dart';
 import '../../../auth/presentation/pages/login_page.dart';
 import '../../../profile/presentation/pages/profile_page.dart';
 import '../../../ticket/presentation/providers/ticket_provider.dart';
+import '../../../auth/presentation/providers/auth_provider.dart';
+import '../../../notification/presentation/pages/notification_page.dart';
 import '../widgets/dashboard_widgets.dart';
 
 class DashboardUserPage extends StatelessWidget {
   const DashboardUserPage({super.key});
 
+  Future<void> _showLogoutConfirmation(BuildContext context, AuthProvider authProvider) async {
+    return showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Konfirmasi'),
+        content: const Text('Apakah Anda yakin ingin logout?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Batal'),
+          ),
+          TextButton(
+            onPressed: () async {
+              await authProvider.logout();
+              if (context.mounted) {
+                Navigator.pushAndRemoveUntil(
+                  context,
+                  MaterialPageRoute(builder: (_) => const LoginPage()),
+                  (route) => false,
+                );
+              }
+            },
+            child: const Text('Ya', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    final provider = Provider.of<TicketProvider>(context);
+    final ticketProvider = Provider.of<TicketProvider>(context);
+    final authProvider = Provider.of<AuthProvider>(context);
     final theme = Theme.of(context);
 
-    final total = provider.total;
-    final diproses = provider.countByStatus('Diproses');
-    final assigned = provider.countByStatus('Assigned');
-    final selesai = provider.countByStatus('Selesai');
+    if (ticketProvider.isLoading || authProvider.isLoading) {
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
 
-    final activities = provider.getRecentActivities();
+    final total = ticketProvider.total;
+    final open = ticketProvider.countByStatus('OPEN');
+    final assigned = ticketProvider.countAssigned;
+    final inProgress = ticketProvider.countByStatus('IN_PROGRESS');
+    final close = ticketProvider.countByStatus('CLOSE');
+
+    final activities = ticketProvider.getRecentActivities();
 
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,
-
       appBar: AppBar(
         title: const Text('Dashboard User'),
         actions: [
           IconButton(
-            icon: Icon(
-              Icons.refresh,
-              color: theme.colorScheme.primary,
-            ),
-            onPressed: provider.loadTickets,
-          ),
-          IconButton(
-            icon: Icon(
-              Icons.person,
-              color: theme.colorScheme.primary,
-            ),
+            icon: Icon(Icons.notifications, color: theme.colorScheme.primary),
             onPressed: () {
               Navigator.push(
                 context,
-                MaterialPageRoute(
-                  builder: (_) => const ProfilePage(role: 'user'),
-                ),
+                MaterialPageRoute(builder: (_) => const NotificationPage()),
               );
             },
           ),
           IconButton(
-            icon: Icon(
-              Icons.logout,
-              color: theme.colorScheme.primary,
-            ),
+            icon: Icon(Icons.refresh, color: theme.colorScheme.primary),
+            onPressed: ticketProvider.loadTickets,
+          ),
+          IconButton(
+            icon: Icon(Icons.person, color: theme.colorScheme.primary),
             onPressed: () {
-              Navigator.pushAndRemoveUntil(
+              Navigator.push(
                 context,
-                MaterialPageRoute(
-                  builder: (_) => const LoginPage(),
-                ),
-                    (route) => false,
+                MaterialPageRoute(builder: (_) => const ProfilePage(role: 'user')),
               );
             },
           ),
+          IconButton(
+            icon: Icon(Icons.logout, color: theme.colorScheme.primary),
+            onPressed: () => _showLogoutConfirmation(context, authProvider),
+          ),
         ],
       ),
-
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              'Halo, User',
-              style: theme.textTheme.titleLarge,
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('Halo,', style: TextStyle(fontSize: 16)),
+                Text(
+                  authProvider.fullName ?? 'User',
+                  style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+                ),
+                Text(
+                  (authProvider.role ?? 'User').toUpperCase(),
+                  style: TextStyle(color: theme.colorScheme.primary, fontWeight: FontWeight.bold, fontSize: 12),
+                ),
+              ],
             ),
-
-            const SizedBox(height: 20),
+            
+            const SizedBox(height: 24),
 
             GridView.count(
               shrinkWrap: true,
@@ -88,85 +125,41 @@ class DashboardUserPage extends StatelessWidget {
               mainAxisSpacing: 12,
               childAspectRatio: 1.2,
               children: [
-                DashboardCard(
-                  title: 'Total',
-                  value: total.toString(),
-                  icon: Icons.list,
-                ),
-                DashboardCard(
-                  title: 'Diproses',
-                  value: diproses.toString(),
-                  icon: Icons.timelapse,
-                ),
-                DashboardCard(
-                  title: 'Assigned',
-                  value: assigned.toString(),
-                  icon: Icons.assignment,
-                ),
-                DashboardCard(
-                  title: 'Selesai',
-                  value: selesai.toString(),
-                  icon: Icons.check_circle,
-                ),
+                DashboardCard(title: 'Total', value: total.toString(), icon: Icons.list),
+                DashboardCard(title: 'Open', value: open.toString(), icon: Icons.lock_open),
+                DashboardCard(title: 'Assigned', value: assigned.toString(), icon: Icons.assignment_ind),
+                DashboardCard(title: 'In Progress', value: inProgress.toString(), icon: Icons.sync),
+                DashboardCard(title: 'Close', value: close.toString(), icon: Icons.lock),
               ],
             ),
-
             const SizedBox(height: 30),
-
             DashboardButton(
               text: 'Lihat Tiket',
               icon: Icons.list,
               onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) =>
-                    const TicketListPage(role: 'user'),
-                  ),
-                );
+                Navigator.push(context, MaterialPageRoute(builder: (_) => const TicketListPage(role: 'user')));
               },
             ),
-
             const SizedBox(height: 12),
-
             DashboardButton(
               text: 'Buat Tiket',
               icon: Icons.add,
               onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) =>
-                    const CreateTicketPage(),
-                  ),
-                );
+                Navigator.push(context, MaterialPageRoute(builder: (_) => const CreateTicketPage()));
               },
             ),
-
             const SizedBox(height: 30),
-
-            Text(
-              'Aktivitas Terbaru',
-              style: theme.textTheme.titleMedium,
-            ),
-
+            Text('Aktivitas Terbaru', style: theme.textTheme.titleMedium),
             const SizedBox(height: 10),
-
             if (activities.isEmpty)
-              Text(
-                'Belum ada aktivitas',
-                style: theme.textTheme.bodyMedium,
-              )
+              Text('Belum ada aktivitas', style: theme.textTheme.bodyMedium)
             else
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: activities.map((e) {
                   return Padding(
                     padding: const EdgeInsets.only(bottom: 6),
-                    child: Text(
-                      '• $e',
-                      style: theme.textTheme.bodyMedium,
-                    ),
+                    child: Text('• $e', style: theme.textTheme.bodyMedium),
                   );
                 }).toList(),
               ),
