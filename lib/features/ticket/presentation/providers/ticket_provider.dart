@@ -7,7 +7,7 @@ class TicketProvider extends ChangeNotifier {
   final TicketService service = TicketService();
 
   List<TicketModel> tickets = [];
-  List<String> _globalHistory = []; // Simpan history global di sini
+  List<String> _globalHistory = [];
   bool isLoading = false;
   RealtimeChannel? _realtimeChannel;
 
@@ -25,8 +25,17 @@ class TicketProvider extends ChangeNotifier {
           schema: 'public',
           table: 'tickets',
           callback: (payload) {
-            debugPrint('Realtime: Tickets changed');
-            loadTickets();
+            debugPrint('Realtime: Ticket changed');
+            _handleTicketChange(payload);
+          },
+        )
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'comments',
+          callback: (payload) {
+            debugPrint('Realtime: Comment changed');
+            _handleCommentChange(payload);
           },
         )
         .onPostgresChanges(
@@ -35,10 +44,36 @@ class TicketProvider extends ChangeNotifier {
           table: 'histories',
           callback: (payload) {
             debugPrint('Realtime: New history added');
-            loadTickets();
+            _handleHistoryChange(payload);
           },
         )
         .subscribe();
+  }
+
+  Future<void> _handleTicketChange(PostgresChangePayload payload) async {
+    final ticketId = payload.newRecord['id']?.toString() ?? payload.oldRecord['id']?.toString();
+    if (ticketId != null) {
+      await refreshTicket(ticketId);
+    } else {
+      await loadTickets();
+    }
+  }
+
+  Future<void> _handleCommentChange(PostgresChangePayload payload) async {
+    final ticketId = payload.newRecord['ticket_id']?.toString() ?? payload.oldRecord['ticket_id']?.toString();
+    if (ticketId != null) {
+      await refreshTicket(ticketId);
+    }
+  }
+
+  Future<void> _handleHistoryChange(PostgresChangePayload payload) async {
+    final ticketId = payload.newRecord['ticket_id']?.toString();
+    if (ticketId != null) {
+      await refreshTicket(ticketId);
+    }
+
+    _globalHistory = await service.fetchGlobalHistories();
+    notifyListeners();
   }
 
   Future<void> loadTickets() async {
@@ -47,18 +82,32 @@ class TicketProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      // 1. Fetch tickets
       final newTickets = await service.fetchTickets();
       tickets = newTickets;
-
-      // 2. Fetch global history (Latest first)
       _globalHistory = await service.fetchGlobalHistories();
-      
     } catch (e) {
       debugPrint('Error loading tickets: $e');
     } finally {
       isLoading = false;
       notifyListeners();
+    }
+  }
+
+  Future<void> refreshTicket(String ticketId) async {
+    try {
+      final updatedTicket = await service.fetchSingleTicket(ticketId);
+      if (updatedTicket != null) {
+        final index = tickets.indexWhere((t) => t.id == ticketId);
+        if (index != -1) {
+          tickets[index] = updatedTicket;
+          notifyListeners();
+        } else {
+          tickets.insert(0, updatedTicket);
+          notifyListeners();
+        }
+      }
+    } catch (e) {
+      debugPrint('Error refreshing ticket: $e');
     }
   }
 
@@ -71,25 +120,75 @@ class TicketProvider extends ChangeNotifier {
   }
 
   Future<void> assignHelpdesk(String ticketId, String helpdeskName) async {
+
+    final index = tickets.indexWhere((t) => t.id == ticketId);
+    String? oldHelpdesk;
+    String? oldStatus;
+    
+    if (index != -1) {
+      oldHelpdesk = tickets[index].assignedHelpdesk;
+      oldStatus = tickets[index].status;
+      
+      tickets[index].assignedHelpdesk = helpdeskName;
+      tickets[index].status = 'IN_PROGRESS';
+      notifyListeners();
+    }
+
     try {
       await service.assignHelpdesk(ticketId, helpdeskName);
     } catch (e) {
+
+      if (index != -1) {
+        tickets[index].assignedHelpdesk = oldHelpdesk;
+        tickets[index].status = oldStatus!;
+        notifyListeners();
+      }
       debugPrint('Error assigning helpdesk: $e');
     }
   }
 
   Future<void> finishTicket(String ticketId) async {
+
+    final index = tickets.indexWhere((t) => t.id == ticketId);
+    String? oldStatus;
+    
+    if (index != -1) {
+      oldStatus = tickets[index].status;
+      tickets[index].status = 'CLOSE';
+      notifyListeners();
+    }
+
     try {
       await service.finishTicket(ticketId);
     } catch (e) {
+
+      if (index != -1) {
+        tickets[index].status = oldStatus!;
+        notifyListeners();
+      }
       debugPrint('Error finishing ticket: $e');
     }
   }
 
   Future<void> updateStatus(TicketModel ticket, String status) async {
+
+    final index = tickets.indexWhere((t) => t.id == ticket.id);
+    String? oldStatus;
+    
+    if (index != -1) {
+      oldStatus = tickets[index].status;
+      tickets[index].status = status;
+      notifyListeners();
+    }
+
     try {
       await service.updateTicketStatus(ticket, status);
     } catch (e) {
+
+      if (index != -1) {
+        tickets[index].status = oldStatus!;
+        notifyListeners();
+      }
       debugPrint('Error updating status: $e');
     }
   }
@@ -100,9 +199,28 @@ class TicketProvider extends ChangeNotifier {
     String author = 'User',
     String role = 'user',
   }) async {
+
+    final index = tickets.indexWhere((t) => t.id == ticket.id);
+    final tempComment = {
+      "message": comment,
+      "author": author,
+      "role": role,
+      "is_temp": "true",
+    };
+
+    if (index != -1) {
+      tickets[index].comments.add(tempComment);
+      notifyListeners();
+    }
+
     try {
       await service.addComment(ticket, comment, author: author, role: role);
     } catch (e) {
+
+      if (index != -1) {
+        tickets[index].comments.removeWhere((c) => c["message"] == comment && c["is_temp"] == "true");
+        notifyListeners();
+      }
       debugPrint('Error adding comment: $e');
       rethrow;
     }
@@ -119,12 +237,10 @@ class TicketProvider extends ChangeNotifier {
     return tickets.where((t) => t.assignedHelpdesk != null).length;
   }
 
-  // Memberikan history global (Terbaru -> Lama) untuk Dashboard & Notification
   List<String> getAllHistory() {
     return _globalHistory;
   }
 
-  // Mengambil limit untuk dashboard
   List<String> getRecentActivities({int limit = 5}) {
     if (_globalHistory.isEmpty) return [];
     return _globalHistory.take(limit).toList();

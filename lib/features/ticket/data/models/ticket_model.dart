@@ -26,6 +26,25 @@ class TicketModel {
   }) : history = history ?? ['Tiket dibuat'];
 
   factory TicketModel.fromJson(Map<String, dynamic> json) {
+
+    List<Map<String, String>> parsedComments = [];
+    if (json['comments'] != null) {
+      parsedComments = (json['comments'] as List).map((c) => {
+        "message": c['message']?.toString() ?? '',
+        "author": c['author']?.toString() ?? '',
+        "role": c['role']?.toString() ?? '',
+      }).toList();
+    }
+
+    List<String> parsedHistory = ['Tiket dibuat'];
+    if (json['histories'] != null) {
+      parsedHistory = (json['histories'] as List)
+          .map((h) => h['activity']?.toString() ?? '')
+          .toList();
+    } else if (json['history'] != null) {
+      parsedHistory = List<String>.from(json['history']);
+    }
+
     return TicketModel(
       id: json['id']?.toString(),
       title: json['title'] ?? '',
@@ -34,10 +53,8 @@ class TicketModel {
       assignedHelpdesk: json['assigned_helpdesk'],
       imagePath: json['image_url'],
       createdAt: json['created_at'],
-      comments: [],
-      history: json['history'] != null 
-          ? List<String>.from(json['history']) 
-          : ['Tiket dibuat'],
+      comments: parsedComments,
+      history: parsedHistory,
     );
   }
 
