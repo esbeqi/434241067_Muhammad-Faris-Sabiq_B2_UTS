@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../../../auth/presentation/pages/login_page.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 import '../../../../main.dart';
+import 'reset_password_page.dart';
 
 class ProfilePage extends StatelessWidget {
   const ProfilePage({super.key, required String role});
@@ -90,6 +91,22 @@ class ProfilePage extends StatelessWidget {
                           ),
                         ),
                         
+                        Divider(indent: 16, endIndent: 16, color: theme.dividerColor.withOpacity(0.1)),
+
+                        // RESET PASSWORD MENU
+                        ListTile(
+                          leading: Icon(Icons.lock_reset, color: theme.colorScheme.primary),
+                          title: const Text('Reset Password'),
+                          subtitle: const Text('Ubah kata sandi akun Anda'),
+                          trailing: const Icon(Icons.chevron_right),
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(builder: (_) => const ResetPasswordPage()),
+                            );
+                          },
+                        ),
+
                         Divider(indent: 16, endIndent: 16, color: theme.dividerColor.withOpacity(0.1)),
                         
                         // DARK MODE SETTING

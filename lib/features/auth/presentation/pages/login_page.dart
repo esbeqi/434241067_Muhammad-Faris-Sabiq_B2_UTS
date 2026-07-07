@@ -8,6 +8,7 @@ import '../../../dashboard/presentation/pages/dashboard_helpdesk_page.dart';
 import '../widgets/auth_widgets.dart';
 import '../providers/auth_provider.dart';
 import 'register_page.dart';
+import 'forgot_password_page.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -140,10 +141,10 @@ class _LoginPageState extends State<LoginPage> {
                 ),
                 TextButton(
                   onPressed: () {
-                    // Navigate to Forgot Password Page if you create one
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Lupa Password (Cek email setelah implementasi)'),
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const ForgotPasswordPage(),
                       ),
                     );
                   },
